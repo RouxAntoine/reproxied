@@ -2,6 +2,7 @@
 package reproxied
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -50,7 +51,10 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 	}
 
 	clientWithHTTPProxy := &http.Client{
-		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
+		Transport: &http.Transport{
+			Proxy:             http.ProxyURL(proxyURL),
+			ForceAttemptHTTP2: false,
+		},
 	}
 	return NewWithClient(ctx, next, config, name, clientWithHTTPProxy)
 }
@@ -107,6 +111,8 @@ func (c *reProxied) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func (c *reProxied) createProxyRequest(req *http.Request) *http.Request {
 	hostHeader := c.computeHostHeader(req.Host)
+	reqBody, _ := io.ReadAll(req.Body)
+	bodyReaderCloser := io.NopCloser(bytes.NewReader(reqBody))
 
 	proxyRequest := &http.Request{
 		Method: req.Method,
@@ -121,11 +127,14 @@ func (c *reProxied) createProxyRequest(req *http.Request) *http.Request {
 			Fragment:    req.URL.Fragment,
 			RawFragment: req.URL.RawFragment,
 		},
+		GetBody: func() (io.ReadCloser, error) {
+			return bodyReaderCloser, nil
+		},
 		Proto:            req.Proto,
 		ProtoMajor:       req.ProtoMajor,
 		ProtoMinor:       req.ProtoMinor,
 		Header:           req.Header,
-		Body:             req.Body,
+		Body:             bodyReaderCloser,
 		ContentLength:    req.ContentLength,
 		TransferEncoding: req.TransferEncoding,
 		Close:            req.Close,
