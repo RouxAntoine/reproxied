@@ -2,15 +2,14 @@
 package reproxied
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"github.com/nilskohrs/reproxied/internal/logging"
 	"io"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
-
-	"github.com/nilskohrs/reproxied/internal/logging"
 )
 
 // Config the plugin configuration.
@@ -31,16 +30,9 @@ func CreateConfig() *Config {
 
 // reProxied a Traefik plugin.
 type reProxied struct {
-	next           http.Handler
-	client         HTTPClient
-	targetHostURL  *url.URL
-	keepHostHeader bool
-	logger         logging.Logger
-}
-
-// HTTPClient is a reduced interface for http.Client.
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
+	next   http.Handler
+	proxy  *httputil.ReverseProxy
+	logger logging.Logger
 }
 
 // New creates a new reProxied plugin.
@@ -50,22 +42,15 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		return nil, fmt.Errorf("unable to parse proxy url: %w", err)
 	}
 
-	clientWithHTTPProxy := &http.Client{
-		Transport: &http.Transport{
-			Proxy:             http.ProxyURL(proxyURL),
-			ForceAttemptHTTP2: false,
-		},
+	transportWithHTTPProxy := &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
 	}
-	return NewWithClient(ctx, next, config, name, clientWithHTTPProxy)
+	return NewWithRoundTripperAndWriter(ctx, next, config, name, transportWithHTTPProxy, os.Stdout)
 }
 
-// NewWithClient plugin constructor for test purpose with custom HTTPClient.
-func NewWithClient(ctx context.Context, next http.Handler, config *Config, name string, client HTTPClient) (http.Handler, error) {
-	return NewWithClientAndWriter(ctx, next, config, name, client, os.Stdout)
-}
+// NewWithRoundTripperAndWriter creates a new reProxied plugin.
+func NewWithRoundTripperAndWriter(ctx context.Context, next http.Handler, config *Config, name string, transport http.RoundTripper, loggingWriter logging.Writer) (http.Handler, error) {
 
-// NewWithClientAndWriter creates a new reProxied plugin.
-func NewWithClientAndWriter(ctx context.Context, next http.Handler, config *Config, name string, client HTTPClient, loggingWriter logging.Writer) (http.Handler, error) {
 	logger := logging.NewReProxiedLoggerWithLevel(name, loggingWriter, config.LogLevel)
 	logger.Debug("plugin called with configuration %+v", config)
 	logger.Debug("create logger with level %+v", config.LogLevel)
@@ -76,88 +61,39 @@ func NewWithClientAndWriter(ctx context.Context, next http.Handler, config *Conf
 	}
 
 	return &reProxied{
-		next:           next,
-		targetHostURL:  targetHostURL,
-		client:         client,
-		keepHostHeader: config.KeepHostHeader,
-		logger:         logger,
+		next:   next,
+		logger: logger,
+		proxy: &httputil.ReverseProxy{
+			Transport:      transport,
+			Director:       createProxyRequest(targetHostURL, config, logger),
+			ModifyResponse: modifyResponseLogger(logger),
+		},
 	}, nil
 }
 
+// createProxyRequest build new request send through HTTP Proxy
+func createProxyRequest(targetHostURL *url.URL, config *Config, logger logging.Logger) func(request *http.Request) {
+	return func(request *http.Request) {
+		request.URL.Scheme = targetHostURL.Scheme
+		request.URL.User = targetHostURL.User
+		request.URL.Host = targetHostURL.Host
+		if !config.KeepHostHeader {
+			request.Host = targetHostURL.Host
+		}
+		logger.Info("proxied req : %+v", request)
+	}
+}
+
+// modifyResponseLogger logging response callback
+func modifyResponseLogger(logger logging.Logger) func(response *http.Response) error {
+	return func(response *http.Response) error {
+		logger.Debug("resp : %+v", response)
+		return nil
+	}
+}
+
+// ServeHTTP doing reverse call
 func (c *reProxied) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	c.logger.Debug("original req : %+v", req)
-
-	proxyRequest := c.createProxyRequest(req)
-
-	resp, err := c.client.Do(proxyRequest)
-	if err != nil {
-		rw.WriteHeader(http.StatusBadGateway)
-		_, _ = rw.Write([]byte(err.Error()))
-		return
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	c.logger.Debug("resp : %+v", resp)
-	for key, values := range resp.Header {
-		for _, value := range values {
-			rw.Header().Add(key, value)
-		}
-	}
-	rw.WriteHeader(resp.StatusCode)
-	buf := make([]byte, 1024)
-	_, _ = io.CopyBuffer(rw, resp.Body, buf)
-}
-
-func (c *reProxied) createProxyRequest(req *http.Request) *http.Request {
-	hostHeader := c.computeHostHeader(req.Host)
-	reqBody, _ := io.ReadAll(req.Body)
-	bodyReaderCloser := io.NopCloser(bytes.NewReader(reqBody))
-
-	proxyRequest := &http.Request{
-		Method: req.Method,
-		URL: &url.URL{
-			Scheme:      c.targetHostURL.Scheme,
-			Opaque:      req.URL.Opaque,
-			User:        c.targetHostURL.User,
-			Host:        c.targetHostURL.Host,
-			Path:        req.URL.Path,
-			ForceQuery:  req.URL.ForceQuery,
-			RawQuery:    req.URL.RawQuery,
-			Fragment:    req.URL.Fragment,
-			RawFragment: req.URL.RawFragment,
-		},
-		GetBody: func() (io.ReadCloser, error) {
-			return bodyReaderCloser, nil
-		},
-		Proto:            req.Proto,
-		ProtoMajor:       req.ProtoMajor,
-		ProtoMinor:       req.ProtoMinor,
-		Header:           req.Header,
-		Body:             bodyReaderCloser,
-		ContentLength:    req.ContentLength,
-		TransferEncoding: req.TransferEncoding,
-		Close:            req.Close,
-		Host:             hostHeader,
-		Form:             req.Form,
-		PostForm:         req.PostForm,
-		MultipartForm:    req.MultipartForm,
-		Trailer:          req.Trailer,
-		RemoteAddr:       req.RemoteAddr,
-		TLS:              req.TLS,
-		Response:         req.Response,
-	}
-
-	c.logger.Info("proxied req : %+v", proxyRequest)
-	return proxyRequest
-}
-
-func (c *reProxied) computeHostHeader(originalHostHeader string) string {
-	var hostHeader string
-	if c.keepHostHeader {
-		hostHeader = originalHostHeader
-	} else {
-		hostHeader = c.targetHostURL.Host
-	}
-	return hostHeader
+	c.proxy.ServeHTTP(rw, req)
 }

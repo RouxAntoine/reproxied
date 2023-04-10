@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -14,24 +15,24 @@ import (
 	"github.com/nilskohrs/reproxied/internal/logging"
 )
 
-type ClientMock struct {
+type HTTPMocking struct {
 	executedRequest []*http.Request
 }
 
-func (mock *ClientMock) Do(req *http.Request) (*http.Response, error) {
+func (mock *HTTPMocking) RoundTrip(req *http.Request) (*http.Response, error) {
 	mock.executedRequest = append(mock.executedRequest, req)
 	return &http.Response{Body: io.NopCloser(strings.NewReader("")), StatusCode: 200}, nil
 }
 
 func TestShouldChangeHost(t *testing.T) {
-	clientMock := &ClientMock{}
+	httpMock := &HTTPMocking{}
 	cfg := reproxied.CreateConfig()
 	cfg.Proxy = "http://proxy:3128"
 	cfg.TargetHost = "https://target.com"
 	ctx := context.Background()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
 
-	handler, err := reproxied.NewWithClient(ctx, next, cfg, "reProxied", clientMock)
+	handler, err := reproxied.NewWithRoundTripperAndWriter(ctx, next, cfg, "reProxied", httpMock, os.Stdout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,13 +46,13 @@ func TestShouldChangeHost(t *testing.T) {
 
 	handler.ServeHTTP(recorder, req)
 
-	if clientMock.executedRequest[0].Host != "target.com" {
-		t.Errorf("expected request host to be updated to \"target.com\" but was actually: %v", clientMock.executedRequest[0].Host)
+	if httpMock.executedRequest[0].Host != "target.com" {
+		t.Errorf("expected request host to be updated to \"target.com\" but was actually: %v", httpMock.executedRequest[0].Host)
 	}
 }
 
 func TestShouldKeepHostHeader(t *testing.T) {
-	clientMock := &ClientMock{}
+	httpMock := &HTTPMocking{}
 
 	cfg := reproxied.CreateConfig()
 	cfg.Proxy = "http://proxy:3128"
@@ -61,7 +62,7 @@ func TestShouldKeepHostHeader(t *testing.T) {
 	ctx := context.Background()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
 
-	handler, err := reproxied.NewWithClient(ctx, next, cfg, "reProxied", clientMock)
+	handler, err := reproxied.NewWithRoundTripperAndWriter(ctx, next, cfg, "reProxied", httpMock, os.Stdout)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,16 +76,16 @@ func TestShouldKeepHostHeader(t *testing.T) {
 
 	handler.ServeHTTP(recorder, req)
 
-	if clientMock.executedRequest[0].URL.Host != "target.com" {
-		t.Errorf("expected request host to be updated to \"target.com\" but was actually: %v", clientMock.executedRequest[0].URL.Host)
+	if httpMock.executedRequest[0].URL.Host != "target.com" {
+		t.Errorf("expected request host to be updated to \"target.com\" but was actually: %v", httpMock.executedRequest[0].URL.Host)
 	}
-	if clientMock.executedRequest[0].Host != "internal.url" {
-		t.Errorf("expected request header host to be kept to \"internal.url\" but was actually: %v", clientMock.executedRequest[0].Host)
+	if httpMock.executedRequest[0].Host != "internal.url" {
+		t.Errorf("expected request header host to be kept to \"internal.url\" but was actually: %v", httpMock.executedRequest[0].Host)
 	}
 }
 
 func TestShouldCustomizeLogLevel(t *testing.T) {
-	clientMock := &ClientMock{}
+	httpMock := &HTTPMocking{}
 
 	cfg := reproxied.CreateConfig()
 	cfg.Proxy = "http://proxy:3128"
@@ -97,7 +98,7 @@ func TestShouldCustomizeLogLevel(t *testing.T) {
 
 	var byteBuffer bytes.Buffer
 
-	_, err := reproxied.NewWithClientAndWriter(ctx, next, cfg, "reProxied", clientMock, &byteBuffer)
+	_, err := reproxied.NewWithRoundTripperAndWriter(ctx, next, cfg, "reProxied", httpMock, &byteBuffer)
 	if err != nil {
 		t.Fatal(err)
 	}
