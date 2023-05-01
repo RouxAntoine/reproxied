@@ -8,3 +8,5 @@ summary: "Route an incoming request through a proxy"
 testData:
   proxy: http://proxyHost:3128
   targetHost: https://example.com
+  keepHostHeader: false
+  logLevel: INFO
