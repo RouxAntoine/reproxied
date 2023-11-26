@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/nilskohrs/reproxied/internal/logging"
-	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
