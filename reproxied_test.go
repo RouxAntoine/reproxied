@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nilskohrs/reproxied"
-	"github.com/nilskohrs/reproxied/internal/logging"
+	"github.com/rouxantoine/reproxied"
+	"github.com/rouxantoine/reproxied/internal/logging"
 )
 
 type HTTPMocking struct {
@@ -21,11 +21,13 @@ type HTTPMocking struct {
 
 func (mock *HTTPMocking) RoundTrip(req *http.Request) (*http.Response, error) {
 	mock.executedRequest = append(mock.executedRequest, req)
-	return &http.Response{Body: io.NopCloser(strings.NewReader("")), StatusCode: 200}, nil
+	return &http.Response{Body: io.NopCloser(strings.NewReader("")), StatusCode: http.StatusOK}, nil
 }
 
 func TestShouldChangeHost(t *testing.T) {
-	httpMock := &HTTPMocking{}
+	httpMock := &HTTPMocking{
+		executedRequest: nil,
+	}
 	cfg := reproxied.CreateConfig()
 	cfg.Proxy = "http://proxy:3128"
 	cfg.TargetHost = "https://target.com"
@@ -52,7 +54,9 @@ func TestShouldChangeHost(t *testing.T) {
 }
 
 func TestShouldKeepHostHeader(t *testing.T) {
-	httpMock := &HTTPMocking{}
+	httpMock := &HTTPMocking{
+		executedRequest: nil,
+	}
 
 	cfg := reproxied.CreateConfig()
 	cfg.Proxy = "http://proxy:3128"
@@ -85,7 +89,9 @@ func TestShouldKeepHostHeader(t *testing.T) {
 }
 
 func TestShouldCustomizeLogLevel(t *testing.T) {
-	httpMock := &HTTPMocking{}
+	httpMock := &HTTPMocking{
+		executedRequest: nil,
+	}
 
 	cfg := reproxied.CreateConfig()
 	cfg.Proxy = "http://proxy:3128"

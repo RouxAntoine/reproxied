@@ -16,7 +16,7 @@ pilot:
 experimental:
   plugins:
     reproxied:
-      moduleName: "github.com/nilskohrs/reproxied"
+      moduleName: "github.com/rouxantoine/reproxied"
       version: "v0.0.5"
       keepHostHeader: true|false # optional, false by default
       logLevel: 1,2,3,4,5  # optional, 2 by default. 1 -> debug, 4 -> error, 5 -> off

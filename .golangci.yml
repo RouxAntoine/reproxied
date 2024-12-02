@@ -41,11 +41,14 @@ linters:
     - noctx
     - lll
     - forbidigo
-    - gomnd # deprecated
-    - execinquery # deprecated
+    - exportloopref # deprecated
+    - depguard
+    - exhaustruct
+    - mnd
+    - gochecknoglobals
 
 issues:
-  exclude-use-default: false
+  exclude-use-default: true
   max-same-issues: 0
   exclude-dirs:
     - pkg/
@@ -55,3 +58,4 @@ issues:
         - goconst
         - funlen
         - godot
+        - revive

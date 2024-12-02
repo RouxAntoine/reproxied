@@ -1,7 +1,7 @@
 displayName: "ReProxied"
 type: middleware
 
-import: github.com/nilskohrs/reproxied
+import: github.com/rouxantoine/reproxied
 
 summary: "Route an incoming request through a proxy"
 

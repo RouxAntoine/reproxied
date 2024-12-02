@@ -4,11 +4,12 @@ package reproxied
 import (
 	"context"
 	"fmt"
-	"github.com/nilskohrs/reproxied/internal/logging"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+
+	"github.com/rouxantoine/reproxied/internal/logging"
 )
 
 // Config the plugin configuration.
@@ -24,6 +25,8 @@ func CreateConfig() *Config {
 	return &Config{
 		LogLevel:       logging.Levels.INFO,
 		KeepHostHeader: false,
+		Proxy:          "",
+		TargetHost:     "",
 	}
 }
 
@@ -48,8 +51,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 }
 
 // NewWithRoundTripperAndWriter creates a new reProxied plugin.
-func NewWithRoundTripperAndWriter(ctx context.Context, next http.Handler, config *Config, name string, transport http.RoundTripper, loggingWriter logging.Writer) (http.Handler, error) {
-
+func NewWithRoundTripperAndWriter(_ context.Context, next http.Handler, config *Config, name string, transport http.RoundTripper, loggingWriter logging.Writer) (http.Handler, error) {
 	logger := logging.NewReProxiedLoggerWithLevel(name, loggingWriter, config.LogLevel)
 	logger.Debug("plugin called with configuration %+v", config)
 	logger.Debug("create logger with level %+v", config.LogLevel)
@@ -70,7 +72,7 @@ func NewWithRoundTripperAndWriter(ctx context.Context, next http.Handler, config
 	}, nil
 }
 
-// createProxyRequest build new request send through HTTP Proxy
+// createProxyRequest build new request send through HTTP Proxy.
 func createProxyRequest(targetHostURL *url.URL, config *Config, logger logging.Logger) func(request *http.Request) {
 	return func(request *http.Request) {
 		request.URL.Scheme = targetHostURL.Scheme
@@ -83,7 +85,7 @@ func createProxyRequest(targetHostURL *url.URL, config *Config, logger logging.L
 	}
 }
 
-// modifyResponseLogger logging response callback
+// modifyResponseLogger logging response callback.
 func modifyResponseLogger(logger logging.Logger) func(response *http.Response) error {
 	return func(response *http.Response) error {
 		logger.Debug("resp : %+v", response)
@@ -91,7 +93,7 @@ func modifyResponseLogger(logger logging.Logger) func(response *http.Response) e
 	}
 }
 
-// ServeHTTP doing reverse call
+// ServeHTTP doing reverse call.
 func (c *reProxied) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	c.logger.Debug("original req : %+v", req)
 	c.proxy.ServeHTTP(rw, req)

@@ -17,15 +17,16 @@ type Logger interface {
 // Writer local alias for io.StringWriter.
 type Writer io.StringWriter
 
-type reProxiedLogger struct {
+// ReProxiedLogger logger representation.
+type ReProxiedLogger struct {
 	prefix string
 	level  Level
 	writer Writer
 }
 
 // NewReProxiedLogger default logger constructor with info level and os.Stdout output.
-func NewReProxiedLogger(pluginName string) Logger {
-	return &reProxiedLogger{
+func NewReProxiedLogger(pluginName string) *ReProxiedLogger {
+	return &ReProxiedLogger{
 		prefix: pluginName,
 		level:  Levels.INFO,
 		writer: os.Stdout,
@@ -33,8 +34,8 @@ func NewReProxiedLogger(pluginName string) Logger {
 }
 
 // NewReProxiedLoggerWithLevel logger constructor with custom level.
-func NewReProxiedLoggerWithLevel(pluginName string, writer Writer, level Level) Logger {
-	return &reProxiedLogger{
+func NewReProxiedLoggerWithLevel(pluginName string, writer Writer, level Level) *ReProxiedLogger {
+	return &ReProxiedLogger{
 		prefix: pluginName,
 		level:  level,
 		writer: writer,
@@ -42,34 +43,34 @@ func NewReProxiedLoggerWithLevel(pluginName string, writer Writer, level Level) 
 }
 
 // Error filter log with level upper or equals to error level.
-func (rl *reProxiedLogger) Error(message string, args ...interface{}) {
+func (rl *ReProxiedLogger) Error(message string, args ...interface{}) {
 	if rl.level <= Levels.ERR {
 		rl.logColored(Levels.ERR, message, args)
 	}
 }
 
 // Warn filter log with level upper or equals to warning level.
-func (rl *reProxiedLogger) Warn(message string, args ...interface{}) {
+func (rl *ReProxiedLogger) Warn(message string, args ...interface{}) {
 	if rl.level <= Levels.WARN {
 		rl.logColored(Levels.WARN, message, args)
 	}
 }
 
 // Info filter log with level upper or equals to info level.
-func (rl *reProxiedLogger) Info(message string, args ...interface{}) {
+func (rl *ReProxiedLogger) Info(message string, args ...interface{}) {
 	if rl.level <= Levels.INFO {
 		rl.logColored(Levels.INFO, message, args)
 	}
 }
 
 // Debug filter log with level upper or equals to debug level.
-func (rl *reProxiedLogger) Debug(message string, args ...interface{}) {
+func (rl *ReProxiedLogger) Debug(message string, args ...interface{}) {
 	if rl.level <= Levels.DEBUG {
 		rl.logColored(Levels.DEBUG, message, args)
 	}
 }
 
-func (rl *reProxiedLogger) logColored(level Level, message string, args []interface{}) {
+func (rl *ReProxiedLogger) logColored(level Level, message string, args []interface{}) {
 	var coloredMessage string
 	switch level {
 	case Levels.ERR:
@@ -86,7 +87,7 @@ func (rl *reProxiedLogger) logColored(level Level, message string, args []interf
 }
 
 // log format a string message and write it to stdout.
-func (rl *reProxiedLogger) log(message string, args []interface{}) {
+func (rl *ReProxiedLogger) log(message string, args []interface{}) {
 	formattedMessage := fmt.Sprintf(message, args...)
 	decoratedMessage := fmt.Sprintf("%s[reproxied]%s - %s\n", Color.CYAN, Color.CLEAR, formattedMessage)
 	_, _ = rl.writer.WriteString(decoratedMessage)
