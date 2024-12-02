@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/rouxantoine/reproxied/internal/logging"
+	"github.com/RouxAntoine/reproxied/internal/logging"
 )
 
 // Config the plugin configuration.

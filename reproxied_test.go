@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rouxantoine/reproxied"
-	"github.com/rouxantoine/reproxied/internal/logging"
+	"github.com/RouxAntoine/reproxied"
+	"github.com/RouxAntoine/reproxied/internal/logging"
 )
 
 type HTTPMocking struct {

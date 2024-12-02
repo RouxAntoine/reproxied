@@ -1,3 +1,3 @@
-module github.com/rouxantoine/reproxied
+module github.com/RouxAntoine/reproxied
 
 go 1.23
