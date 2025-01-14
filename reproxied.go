@@ -4,6 +4,7 @@ package reproxied
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -61,11 +62,13 @@ func NewWithRoundTripperAndWriter(_ context.Context, next http.Handler, config *
 		return nil, fmt.Errorf("unable to parse target host url: %w", err)
 	}
 
+	proxyErrorLogger := log.New(os.Stdout, fmt.Sprintf("%s[reproxied]%s - ", logging.Color.CYAN, logging.Color.CLEAR), log.Ldate|log.Ltime|log.LUTC|log.Llongfile)
 	return &reProxied{
 		next:   next,
 		logger: logger,
 		proxy: &httputil.ReverseProxy{
 			Transport:      transport,
+			ErrorLog:       proxyErrorLogger,
 			Director:       createProxyRequest(targetHostURL, config, logger),
 			ModifyResponse: modifyResponseLogger(logger),
 		},
